@@ -119,10 +119,7 @@ def changed_objects_handler(mask_dilate_slider, state, evt: gr.SelectData):
 
 def get_base_layer_mask(state):
 
-    changed_obj_id = []
-    for obj in state['changed_objects']:
-        changed_obj_id.append(obj['id'])
-
+    changed_obj_id = [obj['id'] for obj in state['changed_objects']]
     #union of mask of all objects
     img = state['orignal_segmented']
     mask = np.zeros(img.shape[:2], dtype=np.uint8)
@@ -135,12 +132,12 @@ def get_base_layer_mask(state):
     mask_image = Image.fromarray(mask)
     if (mask_image.mode != "L"):
         mask_image = mask_image.convert("L")
-    mask_image = ImageOps.invert(mask_image)      
+    mask_image = ImageOps.invert(mask_image)
     #mask_image.save("mask_image.png")      
 
     img = state['orignal_segmented']
     orig_image = Image.fromarray(img[:,:,:3])
-    orig_image.save("orig_image.png")          
+    orig_image.save("orig_image.png")
     transparent = Image.new(orig_image.mode, orig_image.size, (0, 0, 0, 0))
     masked_image = Image.composite(orig_image, transparent, mask_image)
     #masked_image.save("get_masked_background_image.png")  
@@ -153,7 +150,7 @@ def get_inpainted_background(state, mask_dilate_slider):
     url = "http://localhost:9171/api/v2/image"
 
     img = state['orignal_segmented']
-    if (isinstance(img, Image.Image) is not True):
+    if not isinstance(img, Image.Image):
         img = Image.fromarray(img)
     # Create a BytesIO object and save the image there
     buffer = io.BytesIO()
@@ -167,9 +164,9 @@ def get_inpainted_background(state, mask_dilate_slider):
         mask = state['base_layer_mask_enlarged']
     else:
         mask = state['base_layer_mask']
-    if (isinstance(mask, Image.Image) is not True):
+    if not isinstance(mask, Image.Image):
         mask = Image.fromarray(mask)
-    
+
     #mask has background as 1, lama needs object to be 1
     if (mask.mode != "L"):
         mask = mask.convert("L")
@@ -202,7 +199,7 @@ def get_inpainted_background(state, mask_dilate_slider):
 
     else:
         # The request failed
-        print("Error: HTTP status code {}".format(response.status_code))
+        print(f"Error: HTTP status code {response.status_code}")
         print(response.text)    
 
     return image
@@ -250,8 +247,8 @@ def log_image_and_mask(img, mask): #for debugging use only
     cv2.imwrite(f"img_{counter}.png", img)
     cv2.imwrite(f"img_{counter}_mask.png", mask.astype(np.uint8) * 255)
 
-def get_segments (img, task, reftxt, mask_dilate_slider, state):
-    assert (isinstance(state, dict))    
+def get_segments(img, task, reftxt, mask_dilate_slider, state):
+    assert (isinstance(state, dict))
     state['orignal_segmented'] = None
     state['base_layer'] = None
     state['base_layer_masked'] = None
@@ -291,11 +288,8 @@ def get_segments (img, task, reftxt, mask_dilate_slider, state):
         print(f"obj_id={obj_id}, lable={lable}, bbox={bbox}")
         state['seg_boxes'][obj_id] = bbox
 
-    #add a special event, obj stays at the original spot 
-    data = {}
-    data["index"] = (0, 0)
-    data["value"] = 254 # ==> 1, the only object allowed for now
-    data["selected"] = True
+    #add a special event, obj stays at the original spot
+    data = {"index": (0, 0), "value": 254, "selected": True}
     evt = gr.SelectData(None, data)
     mask_dilate_slider, _, state = changed_objects_handler(mask_dilate_slider, state, evt)
 
@@ -308,7 +302,7 @@ def get_segments (img, task, reftxt, mask_dilate_slider, state):
 
 def get_generated(grounding_text, fix_seed, rand_seed, state):
 
-    if ('base_layer_inpainted' in state) == False :
+    if 'base_layer_inpainted' not in state:
         raise gr.Error('The segmentation step must be completed first before generating a new image')
 
     inpainted_background_img = state['base_layer_inpainted']
@@ -324,7 +318,7 @@ def get_generated(grounding_text, fix_seed, rand_seed, state):
             grounding_text = []            
             print("No grounding box found. Grounding text will be ignored.")
         return inpainted_background_img.copy(), state, None
-    
+
     print('Calling GLIGEN_app.generate')
     print('grounding_text: ', grounding_text)
     print(state['boxes'], len(state['boxes']))
@@ -356,15 +350,14 @@ def get_generated_full(task, language_instruction, grounding_instruction, sketch
     return out_gen_1['value'], state
 
 def gligen_change_task(state):
-    if (state['working_image'] is not None):
-        task = "Grounded Inpainting"
-    else:
-        task = "Grounded Generation"
-    return task
+    return (
+        "Grounded Inpainting"
+        if (state['working_image'] is not None)
+        else "Grounded Generation"
+    )
 
 def clear_sketch_pad_mask(sketch_pad_image):
-    sketch_pad = ImageMask.update(value=sketch_pad_image, visible=True) 
-    return sketch_pad
+    return ImageMask.update(value=sketch_pad_image, visible=True)
 
 def save_shared_state(img, state):
     if (isinstance(img, dict) and 'image' in img):
@@ -374,10 +367,7 @@ def save_shared_state(img, state):
     return state
 
 def load_shared_state(state, task = None):
-    if (task == "Grounded Generation"):
-        return None
-    else:
-        return state['working_image']
+    return None if (task == "Grounded Generation") else state['working_image']
 
 def update_shared_state(state, task):
     if (task == "Grounded Generation"):
@@ -408,7 +398,7 @@ def switch_to_compose ():
 
 def copy_to_llava_input(img):
     print('WORKING IMAGE CHANGED!!!!')
-    if (isinstance(img, Image.Image) is not True):
+    if not isinstance(img, Image.Image):
         img = Image.fromarray(img)
     return img
                 
